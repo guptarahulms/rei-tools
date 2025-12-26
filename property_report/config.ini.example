@@ -1,0 +1,51 @@
+[rentcast]
+# Get your API key from https://app.rentcast.io/app/api
+api_key = YOUR_API_KEY_HERE
+base_url = https://api.rentcast.io/v1
+
+[filters]
+# Comma-separated zip codes to search
+zip_codes = 19146
+# Property type: Single Family, Condo, Townhouse, Multi-Family, Manufactured, Apartment, Land
+property_types = Single Family, Condo, Townhouse, Multi-Family
+# Minimum list price (USD)
+min_price = 100
+# Maximum list price (USD)
+max_price = 250000
+# Minimum square footage
+min_sqft = 1000
+# Maximum square footage
+max_sqft = 3000
+# Listing status: Active for available for sale
+status = Active
+# Maximum number of listings to fetch per zip code
+limit = 10
+
+[avm]
+# Maximum radius in miles for comparable properties
+max_radius = 1
+# Maximum days old for comparables (365 = last 12 months)
+days_old = 365
+# Number of comparables to fetch
+comp_count = 10
+
+[costs]
+# Per square foot build up cost in USD
+build_up_cost_per_sqft = 75
+# Financing cost percentage (as decimal, e.g., 0.12 = 12%)
+financing_rate = 0.12
+
+[decision]
+# Minimum upside threshold for "Yes" decision (USD)
+upside_threshold = 30000
+
+[email]
+# SMTP server settings
+smtp_server = smtp.gmail.com
+smtp_port = 587
+# Sender email address
+sender_email = your_email@gmail.com
+# Sender email password or app password (use App Password for Gmail)
+sender_password = YOUR_APP_PASSWORD_HERE
+# Recipient email addresses (comma-separated)
+recipient_emails = recipient@example.com
