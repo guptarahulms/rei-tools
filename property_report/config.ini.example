@@ -4,30 +4,33 @@ api_key = YOUR_API_KEY_HERE
 base_url = https://api.rentcast.io/v1
 
 [filters]
-# Comma-separated zip codes to search
-zip_codes = 19146
 # Property type: Single Family, Condo, Townhouse, Multi-Family, Manufactured, Apartment, Land
 property_types = Single Family, Condo, Townhouse, Multi-Family
-# Minimum list price (USD)
-min_price = 100
-# Maximum list price (USD)
-max_price = 250000
-# Minimum square footage
-min_sqft = 1000
-# Maximum square footage
-max_sqft = 3000
 # Listing status: Active for available for sale
 status = Active
 # Maximum number of listings to fetch per zip code
 limit = 10
 
+# Zip code specific filters
+# Format: [zipcode_XXXXX] where XXXXX is the zip code
+# Each zip code section can have price and sqft ranges
+# Range format: min:max (use * for no limit, e.g., *:250000 or 1000:*)
+
+[zipcode_19146]
+price = 100:250000
+sqft = 1000:3000
+
+[zipcode_19143]
+price = 100:300000
+sqft = 800:2500
+
 [avm]
 # Maximum radius in miles for comparable properties
 max_radius = 1
-# Maximum days old for comparables (365 = last 12 months)
-days_old = 365
+# Maximum days old for sold comparables (180 = last 6 months)
+days_old = 180
 # Number of comparables to fetch
-comp_count = 10
+comp_count = 20
 
 [costs]
 # Per square foot build up cost in USD

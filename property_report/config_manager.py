@@ -19,17 +19,24 @@ class RentcastConfig:
     """Configuration for Rentcast API."""
     api_key: str
     base_url: str = "https://api.rentcast.io/v1"
+    max_api_calls: int = 50
+
+
+@dataclass
+class ZipCodeConfig:
+    """Configuration for a specific zip code."""
+    zip_code: str
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_sqft: Optional[int] = None
+    max_sqft: Optional[int] = None
 
 
 @dataclass
 class FilterConfig:
     """Configuration for property filtering."""
-    zip_codes: list[str]
+    zip_codes: list[ZipCodeConfig]
     property_types: list[str]
-    min_price: Optional[float]
-    max_price: Optional[float]
-    min_sqft: Optional[int]
-    max_sqft: Optional[int]
     status: str = "Active"
     limit: int = 500
 
@@ -53,6 +60,7 @@ class CostConfig:
 class DecisionConfig:
     """Configuration for decision criteria."""
     upside_threshold: float = 30000.0
+    comp_price_threshold: float = 500000.0
 
 
 @dataclass
@@ -174,6 +182,53 @@ class ConfigManager:
         except ValueError:
             return default
     
+    def _parse_range(
+        self, 
+        value: Optional[str], 
+        parse_as_int: bool = False
+    ) -> tuple[Optional[float], Optional[float]]:
+        """
+        Parse a range string in format 'min:max' into (min, max) tuple.
+        
+        Args:
+            value: String in format 'min:max', 'min:*', '*:max', or '*:*'
+            parse_as_int: If True, parse values as integers
+            
+        Returns:
+            Tuple of (min_value, max_value). None for '*' or missing values.
+        """
+        if not value:
+            return None, None
+        
+        if ':' not in value:
+            # Single value - treat as both min and max
+            try:
+                val = int(float(value)) if parse_as_int else float(value)
+                return val, val
+            except ValueError:
+                return None, None
+        
+        parts = value.split(':', 1)
+        min_str = parts[0].strip()
+        max_str = parts[1].strip() if len(parts) > 1 else '*'
+        
+        min_val = None
+        max_val = None
+        
+        if min_str and min_str != '*':
+            try:
+                min_val = int(float(min_str)) if parse_as_int else float(min_str)
+            except ValueError:
+                pass
+        
+        if max_str and max_str != '*':
+            try:
+                max_val = int(float(max_str)) if parse_as_int else float(max_str)
+            except ValueError:
+                pass
+        
+        return min_val, max_val
+    
     def get_rentcast_config(self) -> RentcastConfig:
         """Get Rentcast API configuration."""
         return RentcastConfig(
@@ -181,17 +236,44 @@ class ConfigManager:
             base_url=self._get_value(
                 "rentcast", "base_url", 
                 default="https://api.rentcast.io/v1"
+            ),
+            max_api_calls=self._parse_int(
+                self._get_value("rentcast", "max_api_calls"), default=50
             )
         )
     
     def get_filter_config(self) -> FilterConfig:
         """Get property filter configuration."""
-        zip_codes = self._parse_list(
-            self._get_value("filters", "zip_codes", required=True)
-        )
+        if not self._loaded:
+            self._load_config()
         
-        if not zip_codes:
-            raise ConfigurationError("At least one zip code is required")
+        # Find all zip code sections (format: zipcode_XXXXX)
+        zip_code_configs = []
+        for section in self._config.sections():
+            if section.startswith("zipcode_"):
+                zip_code = section.replace("zipcode_", "")
+                
+                # Parse price and sqft ranges (format: min:max)
+                price_min, price_max = self._parse_range(
+                    self._get_value(section, "price")
+                )
+                sqft_min, sqft_max = self._parse_range(
+                    self._get_value(section, "sqft"), parse_as_int=True
+                )
+                
+                zip_config = ZipCodeConfig(
+                    zip_code=zip_code,
+                    min_price=price_min,
+                    max_price=price_max,
+                    min_sqft=sqft_min,
+                    max_sqft=sqft_max
+                )
+                zip_code_configs.append(zip_config)
+        
+        if not zip_code_configs:
+            raise ConfigurationError(
+                "At least one zip code section is required (e.g., [zipcode_19143])"
+            )
         
         # Parse property_types as a list (comma-separated)
         property_types = self._parse_list(
@@ -199,20 +281,8 @@ class ConfigManager:
         )
         
         return FilterConfig(
-            zip_codes=zip_codes,
+            zip_codes=zip_code_configs,
             property_types=property_types,
-            min_price=self._parse_float(
-                self._get_value("filters", "min_price")
-            ) or None,
-            max_price=self._parse_float(
-                self._get_value("filters", "max_price")
-            ) or None,
-            min_sqft=self._parse_int(
-                self._get_value("filters", "min_sqft")
-            ) or None,
-            max_sqft=self._parse_int(
-                self._get_value("filters", "max_sqft")
-            ) or None,
             status=self._get_value("filters", "status", default="Active"),
             limit=self._parse_int(
                 self._get_value("filters", "limit"), default=500
@@ -249,6 +319,9 @@ class ConfigManager:
         return DecisionConfig(
             upside_threshold=self._parse_float(
                 self._get_value("decision", "upside_threshold"), default=30000.0
+            ),
+            comp_price_threshold=self._parse_float(
+                self._get_value("decision", "comp_price_threshold"), default=500000.0
             )
         )
     

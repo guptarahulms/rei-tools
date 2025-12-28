@@ -104,10 +104,10 @@ def main() -> int:
         config_manager = ConfigManager(args.config)
         config = config_manager.get_app_config()
         
-        logger.info(f"Zip codes to search: {config.filters.zip_codes}")
+        logger.info(f"Zip codes to search: {[zc.zip_code for zc in config.filters.zip_codes]}")
         logger.info(f"Property types: {config.filters.property_types}")
-        logger.info(f"Price range: ${config.filters.min_price:,.0f} - ${config.filters.max_price:,.0f}")
-        logger.info(f"Square footage: {config.filters.min_sqft} - {config.filters.max_sqft} sq ft")
+        for zc in config.filters.zip_codes:
+            logger.info(f"  {zc.zip_code}: price ${zc.min_price or 0:,.0f}-${zc.max_price or 'unlimited'}, sqft {zc.min_sqft or 0}-{zc.max_sqft or 'unlimited'}")
         
         # Initialize Rentcast client
         logger.info("Initializing Rentcast API client...")
@@ -122,9 +122,11 @@ def main() -> int:
             build_up_cost_per_sqft=config.costs.build_up_cost_per_sqft,
             financing_rate=config.costs.financing_rate,
             upside_threshold=config.decision.upside_threshold,
+            comp_price_threshold=config.decision.comp_price_threshold,
             avm_max_radius=config.avm.max_radius,
             avm_days_old=config.avm.days_old,
-            avm_comp_count=config.avm.comp_count
+            avm_comp_count=config.avm.comp_count,
+            max_api_calls=config.rentcast.max_api_calls
         )
         
         # Generate the report
@@ -132,10 +134,6 @@ def main() -> int:
         analyses = report_generator.generate_report(
             zip_codes=config.filters.zip_codes,
             property_types=config.filters.property_types,
-            min_price=config.filters.min_price,
-            max_price=config.filters.max_price,
-            min_sqft=config.filters.min_sqft,
-            max_sqft=config.filters.max_sqft,
             status=config.filters.status,
             limit=config.filters.limit
         )

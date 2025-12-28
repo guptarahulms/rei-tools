@@ -209,53 +209,89 @@ class RentcastClient:
             subject_property=response.get("subjectProperty", {})
         )
     
-    def get_value_estimate_renovated(
+    def get_sold_properties(
         self,
-        address: str,
+        latitude: float,
+        longitude: float,
+        radius: float = 1.0,
+        sale_date_range_days: int = 180,
+        bedrooms_min: Optional[int] = None,
+        bedrooms_max: int = 5,
+        bathrooms_min: Optional[int] = None,
+        bathrooms_max: int = 4,
+        sqft_min: Optional[int] = None,
+        sqft_max: Optional[int] = None,
         property_type: Optional[str] = None,
-        bedrooms: Optional[int] = None,
-        bathrooms: Optional[float] = None,
-        square_footage: Optional[int] = None,
-        max_radius: float = 1.0,
-        days_old: int = 365,
-        comp_count: int = 10
-    ) -> AVMResult:
+        limit: int = 500
+    ) -> list:
         """
-        Get property value estimate for a fully renovated property.
+        Fetch sold properties within a radius of a location.
         
-        This uses the same /avm/value endpoint but with parameters
-        that suggest a renovated property condition. The Rentcast API
-        doesn't have a direct "condition" parameter, so we rely on
-        the comparable properties that have been sold recently
-        (which tend to be renovated for sale).
-        
-        Note: The API compares against recently sold properties,
-        which typically represent market-ready (renovated) conditions.
+        Uses the /properties endpoint with saleDateRange filter to find
+        recently sold comparable properties.
         
         Args:
-            address: The full property address.
-            property_type: Type of property.
-            bedrooms: Number of bedrooms.
-            bathrooms: Number of bathrooms.
-            square_footage: Square footage.
-            max_radius: Maximum radius in miles for comparables.
-            days_old: Maximum age of comparables in days.
-            comp_count: Number of comparables to return.
+            latitude: Latitude of the center point.
+            longitude: Longitude of the center point.
+            radius: Search radius in miles (default 1.0).
+            sale_date_range_days: Max days since sale (default 180 = 6 months).
+            bedrooms_min: Minimum bedrooms filter.
+            bedrooms_max: Maximum bedrooms filter (default 5).
+            bathrooms_min: Minimum bathrooms filter.
+            bathrooms_max: Maximum bathrooms filter (default 4).
+            sqft_min: Minimum square footage.
+            sqft_max: Maximum square footage.
+            property_type: Property type filter.
+            limit: Maximum results to return.
             
         Returns:
-            AVMResult containing the ARV estimate and comparables.
+            List of sold property dictionaries.
         """
-        # For renovated/ARV estimate, we use the standard AVM endpoint
-        # The price returned represents the after-repair value (ARV)
-        # as stated in Rentcast documentation
-        return self.get_value_estimate(
-            address=address,
-            property_type=property_type,
-            bedrooms=bedrooms,
-            bathrooms=bathrooms,
-            square_footage=square_footage,
-            max_radius=max_radius,
-            days_old=days_old,
-            comp_count=comp_count,
-            lookup_subject_attributes=True
+        # Build bedroom range (format: "min:max")
+        bedroom_range = None
+        if bedrooms_min is not None or bedrooms_max is not None:
+            min_str = str(int(bedrooms_min)) if bedrooms_min is not None else "*"
+            max_str = str(int(bedrooms_max)) if bedrooms_max is not None else "*"
+            bedroom_range = f"{min_str}:{max_str}"
+        
+        # Build bathroom range
+        bathroom_range = None
+        if bathrooms_min is not None or bathrooms_max is not None:
+            min_str = str(int(bathrooms_min)) if bathrooms_min is not None else "*"
+            max_str = str(int(bathrooms_max)) if bathrooms_max is not None else "*"
+            bathroom_range = f"{min_str}:{max_str}"
+        
+        # Build square footage range
+        sqft_range = None
+        if sqft_min is not None or sqft_max is not None:
+            min_str = str(int(sqft_min)) if sqft_min is not None else "*"
+            max_str = str(int(sqft_max)) if sqft_max is not None else "*"
+            sqft_range = f"{min_str}:{max_str}"
+        
+        # saleDateRange: "*:180" means sold within last 180 days
+        sale_date_range = f"*:{sale_date_range_days}"
+        
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "radius": radius,
+            "saleDateRange": sale_date_range,
+            "bedrooms": bedroom_range,
+            "bathrooms": bathroom_range,
+            "squareFootage": sqft_range,
+            "propertyType": property_type,
+            "limit": limit
+        }
+        
+        logger.info(
+            f"Fetching sold properties within {radius} miles of "
+            f"({latitude}, {longitude}), sold in last {sale_date_range_days} days"
         )
+        response = self._make_request("/properties", params)
+        
+        # Response is a list of properties
+        if isinstance(response, list):
+            logger.info(f"Found {len(response)} sold properties")
+            return response
+        
+        return []
